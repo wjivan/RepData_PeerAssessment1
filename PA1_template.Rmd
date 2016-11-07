@@ -5,21 +5,89 @@ output:
     keep_md: true
 ---
 
-
 ## Loading and preprocessing the data
 
-
+```{r echo=TRUE}
+rm(list=ls())
+setwd("/Users/wenjian/Desktop/R programming/Reproducible Research/Assignment 1/RepData_PeerAssessment1/")
+library(data.table)
+data<-fread("activity.csv")
+```
 
 ## What is mean total number of steps taken per day?
-
-
+```{r echo=TRUE}
+result1<-data[,.(meansteps=mean(steps),totalsteps=sum(steps)),by=.(date)]
+hist(result1$totalsteps,main="Histogram of total number of steps",xlab="Total steps each day", ylab="Number of days")
+library(knitr)
+kable(result1,col.names = c("Dates","Mean steps per day","Total steps per day"))
+```
 
 ## What is the average daily activity pattern?
+```{r echo=TRUE}
+data1<-as.data.frame(data)
+data1[is.na(data1)]<-0    #remove NAs
+data1<-as.data.table(data1)
+result2<-data1[,.(meansteps=mean(steps)),by=.(interval)]
+plot(result2$interval,result2$meansteps,type="l",xlab="Intervals",ylab="Mean number of steps",main="Average daily activity pattern")
+result2<-result2[order(-meansteps)]
+kable(head(result2,5),caption = "Top 5 intervals with highest activities", col.names = c("Top 5 intervals","Mean number of steps"))
+```
 
-
+The interval with the highest mean number of steps is interval `r result2$interval[1]`.
 
 ## Imputing missing values
+```{r echo=TRUE}
+missingrow<-data[is.na(steps),.N]
+```
 
+1) There are `r missingrow` number of missing rows.
+2) Strategy for imputing missing numbers would be to replace NAs with the **mean for each interval**
 
+```{r echo=TRUE}
+data2<-fread("activity.csv")
+count=0
+result2$meansteps<-as.integer(result2$meansteps)
+for(i in 1:nrow(data2)){
+        if(is.na(data2[i]$steps)){
+                data2[i]$steps<-result2$meansteps[match(data2[i]$interval,result2$interval)]
+                count=count+1
+        }
+}
+
+cat("Total NA replaced is",count)
+
+result3<-data2[,.(meansteps=mean(steps),totalsteps=sum(steps)),by=.(date)]
+hist(result3$totalsteps,main="Histogram of total number of steps",xlab="Total steps each day", ylab="Number of days")
+meanmedtotal1<-result1[!is.na(totalsteps),.(mean=mean(totalsteps),med=median(totalsteps))]
+meanmedtotal2<-result3[,.(mean=mean(totalsteps),med=median(totalsteps))]
+
+kable(meanmedtotal1,caption ="With NAs in data",col.names = c("Mean of total steps","Median of total steps"))
+kable(meanmedtotal2,caption="With NAs replaced",col.names = c("Mean of total steps","Median of total steps"))
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r echo=TRUE}
+library(lubridate)
+data2$date<-ymd(data2$date)
+data2$weekday<-"factors" #Create a new column for ID-ing weekdays or weekends
+    
+for(i in 1:nrow(data2)){
+                if(weekdays(data2[i]$date)=="Saturday" | weekdays(data2[i]$date)=="Sunday"){
+                data2[i]$weekday<-"Weekend"
+        } 
+                else(data2[i]$weekday<-"Weekday") 
+        }
+
+resultwd<-data2[,.(meansteps=mean(steps)),by=.(interval,weekday)]
+
+library(ggplot2)
+ggplot(resultwd,aes(x=interval,y=meansteps))+
+        geom_line()+
+        facet_wrap(~weekday)+
+        xlab("Interval")+
+        ylab("Number of steps")+
+        ggtitle("Difference between weekday and weekends")
+
+
+```
